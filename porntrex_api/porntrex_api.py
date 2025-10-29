@@ -20,9 +20,9 @@ import logging
 import traceback
 
 from functools import cached_property
-from typing import Union, Generator, Optional, List, LiteralString, Tuple, Dict
+from typing import Union, Generator, Tuple, Dict, LiteralString
 from base_api.base import BaseCore, setup_logger, Helper, _choose_quality_from_list, _normalize_quality_value
-from bs4 import BeautifulSoup
+
 
 try:
     from modules.consts import *
@@ -36,15 +36,19 @@ class Video:
         self.url = url
         self.core = core
         self.logger = setup_logger(name="PORNTREX API - [Video]", log_file=None, level=logging.ERROR)
+        self.logger.debug("Trying to fetch HTML Content... [1/3]")
         self.html_content = self.core.fetch(self.url)
+        self.logger.debug("Got HTML Content... [2/3]")
         self.soup = BeautifulSoup(self.html_content, "lxml")
+        self.logger.debug("Initialized Beautifulsoup... [2/3]")
         self.video_metadata = self.soup.find("div", class_="video-info").find("div", class_="item")
         self.json_data = self.get_json_data()
+        self.logger.debug("Extracted JSON Data... [3/3]")
 
     def enable_logging(self, log_file: str = None, level = None, log_ip: str = None, log_port: int = None):
         self.logger = setup_logger(name="PORNTREX API - [Video]", log_file=log_file, level=level, http_ip=log_ip, http_port=log_port)
 
-    def get_json_data(self):
+    def get_json_data(self) -> dict:
         # Grab the object literal after `var flashvars =`
         m = re.search(r"var\s+flashvars\s*=\s*({.*?})\s*;", self.html_content, re.S)
         obj_literal = m.group(1)
@@ -168,7 +172,12 @@ class Video:
     def subscribers_count(self) -> str:
         return self.soup.find("div", class_="button-infow").text.strip()
 
-    def download(self, quality, path: str = "./", callback=None, no_title: bool = False):
+    @cached_property
+    def thumbnail(self) -> str:
+        image = self.json_data["preview_url"]
+        return f"https:{image}"
+
+    def download(self, quality, path: str = "./", callback=None, no_title: bool = False) -> bool:
         """
         `quality` can be an int (e.g., 720) or "best" / "half" / "worst".
         """
@@ -186,6 +195,7 @@ class Video:
             path = os.path.join(path, safe_title)
 
         try:
+            self.logger.debug(f"Trying legacy video download for: {download_url} -->: {path}")
             self.core.legacy_download(url=download_url, path=path, callback=callback)
             return True
 
@@ -200,9 +210,12 @@ class ChannelModelHelper(Helper):
         super().__init__(core=core, video=Video)
         self.url = url
         self.core = core
-        self.html_cntent = self.core.fetch(self.url)
-        self.soup = BeautifulSoup(self.html_cntent, "lxml")
+        self.logger.debug("Trying to fetch HTML content... [1/3]")
+        self.html_content = self.core.fetch(self.url)
+        self.logger.debug("Received HTML content: [2/3]")
+        self.soup = BeautifulSoup(self.html_content, "lxml")
         self.info_container = self.soup.find("div", class_="sidebar").find("div", class_="info")
+        self.logger.debug("Finished processing Channel / Model [3/3]")
 
     @cached_property
     def name(self) -> str:
@@ -224,15 +237,18 @@ class ChannelModelHelper(Helper):
         return dictionary
 
     @cached_property
-    def thumbnail(self) -> str:
+    def image(self) -> str:
         image = self.soup.find("div", class_="profile-model-info").find("img")["data-src"]
         return f"https:{image}"
 
     def videos(self, pages: int = 2, videos_concurrency: int = None, pages_concurrency: int = None) -> Generator[Video, None, None]:
         page_urls = [f"{self.url}?mode=async&function=get_block&block_id=list_videos_common_videos_list_norm&sort_by=post_date&from={page:02d}&_=1761740123131" for page in range(pages)]
-
+        self.logger.debug(f"Built page URLs: {page_urls}")
         videos_concurrency = videos_concurrency or self.core.config.videos_concurrency
         pages_concurrency = pages_concurrency or self.core.config.pages_concurrency
+
+        self.logger.debug(f"Iterating with video concurrency: {videos_concurrency} and pages concurrency: {pages_concurrency}")
+
         yield from self.iterator(page_urls=page_urls, videos_concurrency=videos_concurrency,
                                  pages_concurrency=pages_concurrency, extractor=extractor_html)
 
@@ -242,13 +258,16 @@ class Model(ChannelModelHelper):
 
 
 class Channel(ChannelModelHelper):
+
     @cached_property
-    def thumbnail(self) -> str:
+    def image(self) -> str:
         image = self.soup.find("div", class_="profile-model-info").find("img")["src"]
         return f"https:{image}"
 
-class Client:
+
+class Client(Helper):
     def __init__(self, core: BaseCore = None):
+        super().__init__(video=Video, core=core)
         self.core = core or BaseCore()
 
     def get_video(self, url: str) -> Video:
@@ -259,4 +278,14 @@ class Client:
 
     def get_channel(self, url: str) -> Channel:
         return Channel(url, self.core)
+
+    def search(self, query: str, pages: int = 2,
+                videos_concurrency: int = None, pages_concurrency: int = None) -> Generator[Video, None, None]:
+
+        page_urls = [f"https://www.porntrex.com/search/{query}/?mode=async&function=get_block&block_id=list_videos_videos&q={query}&category_ids=&sort_by=relevance&from={page:02d}&_=1761771312451" for page in range(pages)]
+        videos_concurrency = videos_concurrency or self.core.config.videos_concurrency
+        pages_concurrency = pages_concurrency or self.core.config.pages_concurrency
+
+        yield from self.iterator(page_urls=page_urls, videos_concurrency=videos_concurrency,
+                                 pages_concurrency=pages_concurrency, extractor=extractor_html)
 
