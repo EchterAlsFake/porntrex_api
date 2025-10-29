@@ -195,7 +195,48 @@ class Video:
             return False
 
 
+class Model(Helper):
+    def __init__(self, url: str, core: BaseCore):
+        super().__init__(core=core, video=Video)
+        self.url = url
+        self.core = core
+        self.html_cntent = self.core.fetch(self.url)
+        self.soup = BeautifulSoup(self.html_cntent, "lxml")
+        self.info_container = self.soup.find("div", class_="sidebar").find("div", class_="info")
 
+    @cached_property
+    def name(self) -> str:
+        return self.soup.find("div", class_="name").find("a").text.strip()
+
+    @cached_property
+    def model_information(self) -> dict:
+        dictionary = {}
+
+        info_stuff = self.info_container.find_all("p")
+        for p in info_stuff:
+            _list = p.text.split(":")
+            print(_list)
+            try:
+                dictionary[_list[0]] = _list[1]
+
+            except IndexError:
+                break # No more useful data
+
+        return dictionary
+
+    @cached_property
+    def thumbnail(self) -> str:
+        image = self.soup.find("div", class_="profile-model-info").find("img")["data-src"]
+        return f"https:{image}"
+
+    @cached_property
+    def videos(self, pages: int = 2, videos_concurrency: int = None, pages_concurrency: int = None) -> Generator[Video, None, None]:
+        page_urls = [f"{self.url}?mode=async&function=get_block&block_id=list_videos_common_videos_list_norm&sort_by=post_date&from={page:02d}&_=1761740123131" for page in range(pages)]
+
+        videos_concurrency = videos_concurrency or self.core.config.videos_concurrency
+        pages_concurrency = pages_concurrency or self.core.config.pages_concurrency
+        yield from self.iterator(page_urls=page_urls, videos_concurrency=videos_concurrency,
+                                 pages_concurrency=pages_concurrency, extractor=extractor_html)
 
 
 class Client:
@@ -205,8 +246,8 @@ class Client:
     def get_video(self, url: str) -> Video:
         return Video(url, self.core)
 
-
-
+    def get_model(self, url: str) -> Model:
+        return Model(url, self.core)
 
 
 
