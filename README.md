@@ -11,8 +11,8 @@ Porntrex API is an API for porntrex.com. It allows you to fetch information from
 
 # Disclaimer
 > [!IMPORTANT] 
-> XVideos API is in violation to the ToS of xvideos.com!
-> If you are the website owner of xvideos.com, contact me at my E-Mail, and I'll take this repository immediately offline.
+> Porntrex API is in violation to the ToS of porntrex.com!
+> If you are the website owner of porntrex.com, contact me at my E-Mail, and I'll take this repository immediately offline.
 > EchterAlsFake@proton.me
 
 # Features
