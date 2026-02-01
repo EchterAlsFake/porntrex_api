@@ -6,26 +6,33 @@
     <a href="https://github.com/EchterAlsFake/porntrex_api/actions/workflows/sync-tests.yml"><img src="https://github.com/EchterAlsFake/porntrex_api/actions/workflows/sync-tests.yml/badge.svg" alt="Sync API Tests"/></a>
 </div>
 
-# Description
-Porntrex API is an API for porntrex.com. It allows you to fetch information from videos using httpx and Beautifulsoup.
-
 # Disclaimer
-> [!IMPORTANT] 
-> Porntrex API is in violation to the ToS of porntrex.com!
-> If you are the website owner of porntrex.com, contact me at my E-Mail, and I'll take this repository immediately offline.
-> EchterAlsFake@proton.me
+> [!IMPORTANT]
+> This is an unofficial and unaffiliated project. Please read the full disclaimer before use:
+> **[DISCLAIMER.md](https://github.com/EchterAlsFake/API_Docs/blob/master/Disclaimer.md)**
+>
+> By using this project you agree to comply with the target site’s rules, copyright/licensing requirements,
+> and applicable laws. Do not use it to bypass access controls or scrape at disruptive rates.
 
 # Features
-- Fetch Video Information
+- Fetch videos + metadata
 - Download videos
-- Fetch Model information
-- Download Model videos
-- Fetch Channel information
-- Download Channel videos
+- Fetch Channels
+- Fetch Pornstars
 - Search for videos
-- Proxy Support
-- Http2 support
-- Very good code quality with almost perfect type hinting
+- Built-in caching
+- Easy interface
+- Great type hinting
+- Proxy support
+- Very customizable
+
+# Supported Platforms
+This API has been tested and confirmed working on:
+
+- Windows 11 (x64) 
+- macOS Sequoia (x86_64)
+- Linux (Arch) (x86_64)
+- Android 16 (aarch64)
 
 # Quickstart
 
@@ -71,4 +78,4 @@ Pull requests are also welcome.
 
 # License
 Licensed under the LGPLv3 License
-<br>Copyright (C) 2025 Johannes Habel
+<br>Copyright (C) 2025-2026 Johannes Habel
