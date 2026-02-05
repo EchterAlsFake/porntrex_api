@@ -23,6 +23,12 @@ from functools import cached_property
 from typing import Union, Generator, Tuple, Dict, LiteralString
 from base_api.base import BaseCore, setup_logger, Helper, _choose_quality_from_list, _normalize_quality_value
 
+try:
+    import lxml
+    parser = "lxml"
+
+except (ModuleNotFoundError, ImportError):
+    parser = "html.parser"
 
 try:
     from modules.consts import *
@@ -39,7 +45,7 @@ class Video:
         self.logger.debug("Trying to fetch HTML Content... [1/3]")
         self.html_content = self.core.fetch(self.url)
         self.logger.debug("Got HTML Content... [2/3]")
-        self.soup = BeautifulSoup(self.html_content, "lxml")
+        self.soup = BeautifulSoup(self.html_content, parser)
         self.logger.debug("Initialized Beautifulsoup... [2/3]")
         self.video_metadata = self.soup.find("div", class_="video-info").find("div", class_="item")
         self.json_data = self.get_json_data()
@@ -213,7 +219,7 @@ class ChannelModelHelper(Helper):
         self.logger.debug("Trying to fetch HTML content... [1/3]")
         self.html_content = self.core.fetch(self.url)
         self.logger.debug("Received HTML content: [2/3]")
-        self.soup = BeautifulSoup(self.html_content, "lxml")
+        self.soup = BeautifulSoup(self.html_content, parser)
         self.info_container = self.soup.find("div", class_="sidebar").find("div", class_="info")
         self.logger.debug("Finished processing Channel / Model [3/3]")
 
