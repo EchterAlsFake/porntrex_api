@@ -18,9 +18,10 @@ import os
 import json5
 import logging
 import traceback
+import threading
 
 from functools import cached_property
-from typing import Union, Generator, Tuple, Dict, LiteralString
+from typing import Union, Generator, Tuple, Dict
 from base_api.base import BaseCore, setup_logger, Helper, _choose_quality_from_list, _normalize_quality_value
 
 try:
@@ -183,7 +184,8 @@ class Video:
         image = self.json_data["preview_url"]
         return f"https:{image}"
 
-    def download(self, quality, path: str = "./", callback=None, no_title: bool = False) -> bool:
+    def download(self, quality, path: str = "./", callback=None, no_title: bool = False,
+                 stop_event: threading.Event = None) -> bool:
         """
         `quality` can be an int (e.g., 720) or "best" / "half" / "worst".
         """
@@ -202,7 +204,7 @@ class Video:
 
         try:
             self.logger.debug(f"Trying legacy video download for: {download_url} -->: {path}")
-            self.core.legacy_download(url=download_url, path=path, callback=callback)
+            self.core.legacy_download(url=download_url, path=path, callback=callback, stop_event=stop_event)
             return True
 
         except Exception:
