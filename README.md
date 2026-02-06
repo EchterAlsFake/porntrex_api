@@ -2,8 +2,8 @@
 
 <div align="center">
     <a href="https://pepy.tech/project/porntrex_api"><img src="https://static.pepy.tech/badge/porntrex_api" alt="Downloads"></a>
-    <a href="https://github.com/EchterAlsFake/porntrex_api/workflows/"><img src="https://github.com/EchterAlsFake/porntrex_api/workflows/CodeQL/badge.svg" alt="CodeQL Analysis"/></a>
-    <a href="https://github.com/EchterAlsFake/porntrex_api/actions/workflows/sync-tests.yml"><img src="https://github.com/EchterAlsFake/porntrex_api/actions/workflows/sync-tests.yml/badge.svg" alt="Sync API Tests"/></a>
+        <a href="https://github.com/EchterAlsFake/porntrex_api/workflows/"><img src="https://github.com/EchterAlsFake/porntrex_api/workflows/CodeQL/badge.svg" alt="CodeQL Analysis"/></a>
+    <a href="https://echteralsfake.me/ci/porntrex_api/badge.svg"><img src="https://echteralsfake.me/ci/porntrex_api/badge.svg" alt="Sync API Tests"/></a>
 </div>
 
 # Disclaimer
