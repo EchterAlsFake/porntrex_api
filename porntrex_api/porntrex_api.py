@@ -110,12 +110,21 @@ class Video:
         # Sort by ascending height
         return sorted(by_height.items(), key=lambda kv: kv[0])
 
+    @cached_property
     def video_qualities(self) -> list:
         """
         :return: (list[str]) available qualities as e.g. ["480", "720", "1080", "2160"]
         """
         pairs = self._collect_height_url_pairs()
         heights = [str(h) for h, _ in pairs]
+        return heights
+
+    def video_qualities_int(self) -> list:
+        """
+        :return: (list[int]) available qualities as e.g. [480, 720, 1080, 2160]
+        """
+        pairs = self._collect_height_url_pairs()
+        heights = [h for h, _ in pairs]
         return heights
 
     def direct_download_urls(self) -> list:
@@ -296,4 +305,3 @@ class Client(Helper):
 
         yield from self.iterator(page_urls=page_urls, videos_concurrency=videos_concurrency,
                                  pages_concurrency=pages_concurrency, extractor=extractor_html)
-
