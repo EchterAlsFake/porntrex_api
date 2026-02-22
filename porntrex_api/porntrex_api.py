@@ -190,7 +190,7 @@ class Video:
         `quality` can be an int (e.g., 720) or "best" / "half" / "worst".
         """
         cdn_urls = self.direct_download_urls()
-        quals = self.video_qualities()  # e.g., ["480", "720", "1080", "2160"]
+        quals = self.video_qualities  # e.g., ["480", "720", "1080", "2160"]
 
         qn = _normalize_quality_value(quality)
         chosen_height = _choose_quality_from_list(quals, qn)
