@@ -1,10 +1,15 @@
 from ..porntrex_api import Client
+import pytest
 
 
-client = Client()
-video = client.get_video("https://www.porntrex.com/video/2989480/i-have-two-big-titties-and-im-your-date")
+@pytest.fixture
+def client() -> Client:
+    return Client()
 
-def test_attributes():
+
+@pytest.mark.asyncio
+async def test_all(client):
+    video = await client.get_video("https://www.porntrex.com/video/2989480/i-have-two-big-titties-and-im-your-date")
     assert isinstance(video.title, str) and len(video.title) > 0
     assert isinstance(video.json_data, dict) and len(video.video_metadata) > 0
     assert isinstance(video.description, str) and len(video.description) > 0
@@ -19,6 +24,4 @@ def test_attributes():
     assert isinstance(video.views, str) and len(video.views) > 0
     assert isinstance(video.rnd, str) and len(video.rnd) > 0
     assert isinstance(video.thumbnail, str) and len(video.thumbnail) > 0
-
-def test_download():
-    assert video.download(quality="worst") is True
+    assert await video.download(quality="worst") is True

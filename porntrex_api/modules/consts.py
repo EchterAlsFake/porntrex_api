@@ -24,5 +24,4 @@ def extractor_html(content: str) -> List[str]:
     for container in containers:
         video_urls.append(container.find("a")["href"])
 
-    print(video_urls)
     return video_urls

@@ -1,22 +1,30 @@
 from .. import Client, Video
 from base_api.base import BaseCore
+import pytest
 
-core = BaseCore()
-core.config.videos_concurrency = 1
-core.config.pages_concurrency = 1
 
-client = Client()
-model = client.get_model("https://www.porntrex.com/models/rose/")
 
-def test_model_information():
+
+@pytest.mark.asyncio
+async def test_all():
+    core = BaseCore()
+    core.config.videos_concurrency = 1
+    core.config.pages_concurrency = 1
+    client = Client(core=core)
+    model = await client.get_model("https://www.porntrex.com/models/rose/")
+
+
     assert isinstance(model.name, str) and len(model.name) > 0
     assert isinstance(model.information, dict) and len(model.information) > 0
 
-def test_model_videos():
-    for idx, video in enumerate(model.videos()):
+    idx = 0
+    async for video in model.videos():
+        await video.init()
+        idx += 1
+        assert isinstance(video.title, str)
+
         if idx == 5:
             break
 
-        assert isinstance(video, Video) and video.title is not None
 
 
