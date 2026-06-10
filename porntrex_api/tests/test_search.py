@@ -8,8 +8,8 @@ async def test_all():
 
 
     core = BaseCore()
-    core.config.pages_concurrency = 1
-    core.config.videos_concurrency = 1
+    core.configuration.pages_concurrency = 1
+    core.configuration.videos_concurrency = 1
 
     client = Client(core=core)
     search = client.search(query="stepmom")

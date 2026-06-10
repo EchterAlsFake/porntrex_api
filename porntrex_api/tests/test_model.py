@@ -8,8 +8,8 @@ import pytest
 @pytest.mark.asyncio
 async def test_all():
     core = BaseCore()
-    core.config.videos_concurrency = 1
-    core.config.pages_concurrency = 1
+    core.configuration.videos_concurrency = 1
+    core.configuration.pages_concurrency = 1
     client = Client(core=core)
     model = await client.get_model("https://www.porntrex.com/models/rose/")
 

@@ -1,5 +1,5 @@
 """
-Copyright (C) 2024-2025 Johannes Habel
+Copyright (C) 2024-2026 Johannes Habel
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,9 +20,13 @@ import logging
 import traceback
 import threading
 
+from bs4 import Tag
+from curl_cffi import Response
 from functools import cached_property
-from typing import Union, Tuple, Dict, AsyncGenerator, Optional
-from base_api.base import BaseCore, setup_logger, Helper, _choose_quality_from_list, _normalize_quality_value
+from typing import Tuple, Dict, AsyncGenerator
+from base_api.base import BaseCore, setup_logger, Helper
+from base_api.modules.static_functions import choose_quality_from_list,  normalize_quality_value
+from base_api.modules.errors import InvalidProxy, UnknownError, BotProtectionDetected, NetworkingError
 
 try:
     import lxml
@@ -33,47 +37,95 @@ except (ModuleNotFoundError, ImportError):
 
 try:
     from modules.consts import *
+    from modules.errors import *
+    from modules.type_hints import *
 
 except (ModuleNotFoundError, ImportError):
     from .modules.consts import *
+    from .modules.errors import *
+    from .modules.type_hints import *
+
+
+async def get_html_content(core: BaseCore, url: str) -> str | None | dict:
+    # What should I do here?
+    try:
+        content = await core.fetch(url)
+        if isinstance(content, str):
+            return content
+
+        if isinstance(content, Response):
+            if content.status_code == 404:
+                raise NotFound(f"Server returned 404 for: {url}")
+
+    except NetworkingError as e:
+        raise NetworkError(str(e)) from e
+
+    except InvalidProxy as e:
+        raise ProxyError(str(e)) from e
+
+    except BotProtectionDetected as e:
+        raise BotDetection(str(e)) from e
+
+    except UnknownError as e:
+        raise UnknownNetworkError(str(e)) from e
 
 
 class Video:
-    def __init__(self, url: str, core: Optional[BaseCore], html_content: str = None):
+    def __init__(self, url: str, core: BaseCore, html_content: str | None = None):
         self.url = url
         self.core = core
         self.logger = setup_logger(name="PORNTREX API - [Video]", log_file=None, level=logging.ERROR)
         self.logger.debug("Trying to fetch HTML Content... [1/3]")
         self.html_content = html_content
         self.json_data = {}
-        self.soup: Optional[BeautifulSoup] = None
-        self.video_metadata: Optional[BeautifulSoup] = None
+        self._soup: BeautifulSoup | None = None
+        self._video_metadata: Tag | None = None
 
     async def init(self):
         if not self.html_content:
-            self.html_content = await self.get_html_content()
+            self.html_content = await get_html_content(core=self.core, url=self.url)
 
         self.logger.debug("Got HTML Content... [2/3]")
-        self.soup = BeautifulSoup(self.html_content, parser)
-        self.video_metadata = self.soup.find("div", class_="video-info").find("div", class_="item")
+        assert isinstance(self.html_content, str)
+        self._soup = BeautifulSoup(self.html_content, parser)
+        self._video_metadata = self.soup.find("div", class_="video-info").find("div", class_="item")
         self.logger.debug("Initialized Beautifulsoup... [2/3]")
         self.json_data = self.get_json_data()
         self.logger.debug("Extracted JSON Data... [3/3]")
         return self
 
-    async def get_html_content(self) -> str:
-        return await self.core.fetch(self.url)
+    @property
+    def video_metadata(self) -> Tag:
+        if not self._video_metadata:
+            raise ValueError("You probably forgot to call init")
 
-    def enable_logging(self, log_file: str = None, level = None, log_ip: str = None, log_port: int = None):
+        return self._video_metadata
+
+    @property
+    def soup(self) -> BeautifulSoup:
+        if not self._soup:
+            raise ValueError("You probably forgot to call init")
+
+        return self._soup
+
+
+    def enable_logging(self, log_file: str | None = None, level: int | None = None, log_ip: str | None = None, log_port: int | None = None):
+        if not level:
+            level = logging.DEBUG
         self.logger = setup_logger(name="PORNTREX API - [Video]", log_file=log_file, level=level, http_ip=log_ip, http_port=log_port)
 
     def get_json_data(self) -> dict:
         # Grab the object literal after `var flashvars =`
+        assert isinstance(self.html_content, str)
         m = re.search(r"var\s+flashvars\s*=\s*({.*?})\s*;", self.html_content, re.S)
-        obj_literal = m.group(1)
-        return json5.loads(obj_literal)
+        if m:
+            obj_literal = m.group(1)
+            return json5.loads(obj_literal)
 
-    def _extract_height_for_key(self, key: str, url: str) -> Union[int, None]:
+        else:
+            raise "Error while extracting JSON data, please report this!"
+
+    def _extract_height_for_key(self, key: str, url: str) -> int | None:
         """
         Try to get the numeric height from "<key>_text" first, then from the URL pattern.
         """
@@ -213,8 +265,8 @@ class Video:
         cdn_urls = self.direct_download_urls()
         quals = self.video_qualities  # e.g., ["480", "720", "1080", "2160"]
 
-        qn = _normalize_quality_value(quality)
-        chosen_height = _choose_quality_from_list(quals, qn)
+        qn = normalize_quality_value(quality)
+        chosen_height = choose_quality_from_list(quals, qn)
 
         quality_url_map = {int(q): url for q, url in zip(quals, cdn_urls)}
         download_url = quality_url_map[chosen_height]
@@ -235,26 +287,48 @@ class Video:
 
 
 class ChannelModelHelper(Helper):
-    def __init__(self, url: str, core: Optional[BaseCore], html_content: str = None):
-        super().__init__(core=core, video=Video)
+    def __init__(self, url: str, core: BaseCore, html_content: str | None = None):
+        super().__init__(core=core, video_constructor=Video)
         self.url = url
         self.core = core
-        self.soup: Optional[BeautifulSoup] = None
-        self.info_container: Optional[BeautifulSoup] = None
+        self._soup: BeautifulSoup | None = None
+        self._info_container: Tag | None = None
         self.html_content = html_content
+        self.logger = setup_logger(name="PORNTREX API - [Channel / Pornstar / Model]", log_file=None, level=logging.ERROR)
+
+    def enable_logging(self, log_file: str | None = None, level: int | None = None, log_ip: str | None = None,
+                           log_port: int | None = None):
+            if not level:
+                level = logging.DEBUG
+
+            self.logger = setup_logger(name="PORNTREX API - [Channel / Pornstar / Model]", log_file=log_file, level=level, http_ip=log_ip,
+                                       http_port=log_port)
 
     async def init(self):
         if not self.html_content:
-            self.html_content = await self.get_html_content()
+            self.html_content = await get_html_content(core=self.core, url=self.url)
 
+        assert isinstance(self.html_content, str)
         self.logger.debug("Received HTML content: [1/2]")
-        self.soup = BeautifulSoup(self.html_content, parser)
-        self.info_container = self.soup.find("div", class_="sidebar").find("div", class_="info")
+        self._soup = BeautifulSoup(self.html_content, parser)
+        self._info_container = self.soup.find("div", class_="sidebar").find("div", class_="info")
         self.logger.debug("Finished processing Channel / Model [3/3]")
         return self
 
-    async def get_html_content(self) -> str:
-        return await self.core.fetch(self.url)
+
+    @property
+    def soup(self) -> BeautifulSoup:
+        if not self._soup:
+            raise ValueError("You probably forgot to call init")
+
+        return self._soup
+
+    @property
+    def info_container(self) -> Tag:
+        if not self._info_container:
+            raise ValueError("You probably forgot to call init")
+
+        return self._info_container
 
     @cached_property
     def name(self) -> str:
@@ -280,16 +354,16 @@ class ChannelModelHelper(Helper):
         image = self.soup.find("div", class_="profile-model-info").find("img")["data-src"]
         return f"https:{image}"
 
-    async def videos(self, pages: int = 2, videos_concurrency: int = None, pages_concurrency: int = None) -> AsyncGenerator[Video, None]:
+    async def videos(self, pages: int = 2, videos_concurrency: int | None = None, pages_concurrency: int | None = None) -> AsyncGenerator[Video, None]:
         page_urls = [f"{self.url}?mode=async&function=get_block&block_id=list_videos_common_videos_list_norm&sort_by=post_date&from={page:02d}&_=1761740123131" for page in range(pages)]
         self.logger.debug(f"Built page URLs: {page_urls}")
-        videos_concurrency = videos_concurrency or self.core.config.videos_concurrency
-        pages_concurrency = pages_concurrency or self.core.config.pages_concurrency
-
+        videos_concurrency = videos_concurrency or self.core.configuration.videos_concurrency
+        pages_concurrency = pages_concurrency or self.core.configuration.pages_concurrency
+        assert videos_concurrency and pages_concurrency
         self.logger.debug(f"Iterating with video concurrency: {videos_concurrency} and pages concurrency: {pages_concurrency}")
 
-        async for video in self.iterator(page_urls=page_urls, videos_concurrency=videos_concurrency,
-                                 pages_concurrency=pages_concurrency, extractor=extractor_html):
+        async for video in self.iterator(target_page_urls=page_urls, max_video_concurrency=videos_concurrency,
+                                 max_page_concurrency=pages_concurrency, video_link_extractor=extractor_html):
             yield video
 
 
@@ -306,12 +380,11 @@ class Channel(ChannelModelHelper):
 
 
 class Client(Helper):
-    def __init__(self, core: BaseCore = None):
-        super().__init__(video=Video, core=core)
+    def __init__(self, core: BaseCore = BaseCore()):
+        super().__init__(video_constructor=Video, core=core)
         self.core = core or BaseCore()
 
     async def get_video(self, url: str) -> Video:
-
         video = Video(url, self.core)
         return await video.init()
 
@@ -327,9 +400,10 @@ class Client(Helper):
                 videos_concurrency: int = None, pages_concurrency: int = None) -> AsyncGenerator[Video, None]:
 
         page_urls = [f"https://www.porntrex.com/search/{query}/?mode=async&function=get_block&block_id=list_videos_videos&q={query}&category_ids=&sort_by=relevance&from={page:02d}&_=1761771312451" for page in range(pages)]
-        videos_concurrency = videos_concurrency or self.core.config.videos_concurrency
-        pages_concurrency = pages_concurrency or self.core.config.pages_concurrency
+        videos_concurrency = videos_concurrency or self.core.configuration.videos_concurrency
+        pages_concurrency = pages_concurrency or self.core.configuration.pages_concurrency
+        assert videos_concurrency and pages_concurrency
 
-        async for video in self.iterator(page_urls=page_urls, videos_concurrency=videos_concurrency,
-                                 pages_concurrency=pages_concurrency, extractor=extractor_html):
+        async for video in self.iterator(target_page_urls=page_urls, max_video_concurrency=videos_concurrency,
+                                 max_page_concurrency=pages_concurrency, video_link_extractor=extractor_html):
             yield video
