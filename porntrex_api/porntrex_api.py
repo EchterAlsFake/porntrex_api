@@ -26,7 +26,7 @@ from functools import cached_property
 from typing import Tuple, Dict, AsyncGenerator
 from base_api.base import BaseCore, setup_logger, Helper
 from base_api.modules.static_functions import choose_quality_from_list,  normalize_quality_value
-from base_api.modules.errors import InvalidProxy, UnknownError, BotProtectionDetected, NetworkingError
+from base_api.modules.errors import InvalidProxy, UnknownError, BotProtectionDetected, NetworkingError, ResourceGone
 
 try:
     import lxml
@@ -44,6 +44,15 @@ except (ModuleNotFoundError, ImportError):
     from .modules.consts import *
     from .modules.errors import *
     from .modules.type_hints import *
+
+
+async def on_error(url: str, error: Exception, attempt: int) -> bool:
+    print(f"URL: {url}, ERROR: {error}, Attempt: {attempt}")
+
+    if isinstance(error, ResourceGone):
+        return False
+
+    return True
 
 
 async def get_html_content(core: BaseCore, url: str) -> str | None | dict:
@@ -354,7 +363,10 @@ class ChannelModelHelper(Helper):
         image = self.soup.find("div", class_="profile-model-info").find("img")["data-src"]
         return f"https:{image}"
 
-    async def videos(self, pages: int = 2, videos_concurrency: int | None = None, pages_concurrency: int | None = None) -> AsyncGenerator[Video, None]:
+    async def videos(self, pages: int = 2, videos_concurrency: int | None = None, pages_concurrency: int | None = None,
+                     on_video_error: on_error_hint = on_error,
+                     on_page_error: on_error_hint = None
+                     ) -> AsyncGenerator[Video, None]:
         page_urls = [f"{self.url}?mode=async&function=get_block&block_id=list_videos_common_videos_list_norm&sort_by=post_date&from={page:02d}&_=1761740123131" for page in range(pages)]
         self.logger.debug(f"Built page URLs: {page_urls}")
         videos_concurrency = videos_concurrency or self.core.configuration.videos_concurrency
@@ -363,7 +375,8 @@ class ChannelModelHelper(Helper):
         self.logger.debug(f"Iterating with video concurrency: {videos_concurrency} and pages concurrency: {pages_concurrency}")
 
         async for video in self.iterator(target_page_urls=page_urls, max_video_concurrency=videos_concurrency,
-                                 max_page_concurrency=pages_concurrency, video_link_extractor=extractor_html):
+                                 max_page_concurrency=pages_concurrency, video_link_extractor=extractor_html,
+                                         on_video_error=on_video_error, on_page_error=on_page_error):
             yield video
 
 
@@ -397,7 +410,10 @@ class Client(Helper):
         return await channel.init()
 
     async def search(self, query: str, pages: int = 2,
-                videos_concurrency: int = None, pages_concurrency: int = None) -> AsyncGenerator[Video, None]:
+                videos_concurrency: int | None = None, pages_concurrency: int | None = None,
+                     on_video_error: on_error_hint = on_error,
+                     on_page_error: on_error_hint = None
+                     ) -> AsyncGenerator[Video, None]:
 
         page_urls = [f"https://www.porntrex.com/search/{query}/?mode=async&function=get_block&block_id=list_videos_videos&q={query}&category_ids=&sort_by=relevance&from={page:02d}&_=1761771312451" for page in range(pages)]
         videos_concurrency = videos_concurrency or self.core.configuration.videos_concurrency
@@ -405,5 +421,6 @@ class Client(Helper):
         assert videos_concurrency and pages_concurrency
 
         async for video in self.iterator(target_page_urls=page_urls, max_video_concurrency=videos_concurrency,
-                                 max_page_concurrency=pages_concurrency, video_link_extractor=extractor_html):
+                                 max_page_concurrency=pages_concurrency, video_link_extractor=extractor_html,
+                                 on_video_error=on_video_error, on_page_error=on_page_error):
             yield video
